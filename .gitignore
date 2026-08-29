@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.pytest_cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# System & IDE
+.DS_Store
+*.log
+.vscode/
