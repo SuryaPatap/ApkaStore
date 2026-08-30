@@ -44,9 +44,13 @@ app.add_middleware(
 # DATABASE TABLE CREATION
 # ============================================================
 
-Base.metadata.create_all(
-    bind=engine
-)
+@app.on_event("startup")
+def on_startup():
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables initialized successfully.")
+    except Exception as e:
+        print(f"Notice: Initial database connection attempt: {e}")
 
 
 # ============================================================
