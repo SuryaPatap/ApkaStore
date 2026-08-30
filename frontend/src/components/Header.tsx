@@ -5,12 +5,14 @@ import { colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { notificationApi } from '../api/endpoints';
 import { NotificationModal } from './NotificationModal';
+import { InstallAppButton } from './InstallAppButton';
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
   showRoleToggle?: boolean;
   showNotifications?: boolean;
+  showInstallButton?: boolean;
   onNotificationPress?: () => void;
   unreadCount?: number;
 }
@@ -20,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   showRoleToggle = true,
   showNotifications = true,
+  showInstallButton = true,
   onNotificationPress,
   unreadCount: explicitUnreadCount,
 }) => {
@@ -66,6 +69,8 @@ export const Header: React.FC<HeaderProps> = ({
         </View>
 
         <View style={styles.actions}>
+          {showInstallButton && <InstallAppButton />}
+
           {showRoleToggle && (
             <View
               style={[

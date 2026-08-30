@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
+import { InstallAppButton } from '../../components/InstallAppButton';
 
 interface LoginScreenProps {
   onNavigateToRegister: () => void;
@@ -218,6 +219,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigateToRegister }
             <TouchableOpacity onPress={onNavigateToRegister}>
               <Text style={styles.registerLink}>Register Now</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Optional Install Badge */}
+          <View style={{ marginTop: 20, alignItems: 'center' }}>
+            <InstallAppButton variant="badge" />
           </View>
         </View>
       </ScrollView>

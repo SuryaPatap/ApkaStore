@@ -17,7 +17,15 @@
       }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./public/favicon.ico",
+      "name": "ApkaStore",
+      "shortName": "ApkaStore",
+      "themeColor": "#059669",
+      "backgroundColor": "#F8FAFC",
+      "display": "standalone",
+      "scope": "/",
+      "startUrl": "/"
     }
   }
 }
