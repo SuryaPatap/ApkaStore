@@ -4,8 +4,8 @@ from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..base import Base
 
-class Invoice(Base):
-    __tablename__ = 'invoices'
+class PurchaseInvoice(Base):
+    __tablename__ = 'purchase_invoices'
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -18,63 +18,31 @@ class Invoice(Base):
         index=True
     )
 
-    customer_id: Mapped[int | None] = mapped_column(
-        ForeignKey('customers.id', ondelete='SET NULL'),
-        nullable=True,
-        index=True
-    )
-
-    invoice_number: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        unique=True,
-        index=True
-    )
-
-    customer_name: Mapped[str] = mapped_column(
-        String(100),
-        default='Walk-in Customer',
+    supplier_name: Mapped[str] = mapped_column(
+        String(150),
         nullable=False
     )
 
-    customer_phone: Mapped[str | None] = mapped_column(
+    supplier_phone: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True
     )
 
-    subtotal_amount: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        default=0,
-        nullable=False
+    invoice_number: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True
     )
 
-    discount_amount: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        default=0,
-        nullable=False
-    )
-
-    tax_amount: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        default=0,
+    invoice_date: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         default=0,
-        nullable=False
-    )
-
-    payment_method: Mapped[str] = mapped_column(
-        String(30),
-        default='CASH',
-        nullable=False
-    )
-
-    payment_status: Mapped[str] = mapped_column(
-        String(30),
-        default='PAID',
         nullable=False
     )
 
@@ -91,23 +59,18 @@ class Invoice(Base):
 
     shop = relationship(
         'Shop',
-        backref='invoices'
-    )
-
-    customer = relationship(
-        'Customer',
-        backref='invoices'
+        backref='purchase_invoices'
     )
 
     items = relationship(
-        'InvoiceItem',
+        'PurchaseInvoiceItem',
         back_populates='invoice',
         cascade='all, delete-orphan'
     )
 
 
-class InvoiceItem(Base):
-    __tablename__ = 'invoice_items'
+class PurchaseInvoiceItem(Base):
+    __tablename__ = 'purchase_invoice_items'
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -115,7 +78,7 @@ class InvoiceItem(Base):
     )
 
     invoice_id: Mapped[int] = mapped_column(
-        ForeignKey('invoices.id', ondelete='CASCADE'),
+        ForeignKey('purchase_invoices.id', ondelete='CASCADE'),
         nullable=False,
         index=True
     )
@@ -127,6 +90,12 @@ class InvoiceItem(Base):
 
     product_name: Mapped[str] = mapped_column(
         String(150),
+        nullable=False
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        default='Groceries',
         nullable=False
     )
 
@@ -142,18 +111,26 @@ class InvoiceItem(Base):
         nullable=False
     )
 
-    unit_price: Mapped[Decimal] = mapped_column(
+    purchase_price: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
+        default=0,
         nullable=False
     )
 
-    total_price: Mapped[Decimal] = mapped_column(
+    selling_price: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
+        default=0,
+        nullable=False
+    )
+
+    total_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=0,
         nullable=False
     )
 
     invoice = relationship(
-        'Invoice',
+        'PurchaseInvoice',
         back_populates='items'
     )
 

@@ -9,31 +9,27 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/Header';
 import { ModalDialog } from '../../components/ModalDialog';
 import { EmptyState } from '../../components/EmptyState';
-import { CreateInvoiceModal } from '../../components/CreateInvoiceModal';
-import { InvoiceDetailModal } from '../../components/InvoiceDetailModal';
+import { AddFromInvoiceModal } from '../../components/AddFromInvoiceModal';
+import { SupplierInvoiceHistoryModal } from '../../components/SupplierInvoiceHistoryModal';
 import { useAuth } from '../../context/AuthContext';
-import { shopApi, invoiceApi } from '../../api/endpoints';
-import { Product, Invoice } from '../../types';
+import { shopApi } from '../../api/endpoints';
+import { Product, PurchaseInvoice } from '../../types';
 
 export const InventoryScreen: React.FC = () => {
   const { shop } = useAuth();
-  const [activeTab, setActiveTab] = useState<'STOCK' | 'INVOICES'>('STOCK');
-
-  // Stock State
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Add Product Modal
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  // Single Item Add Modal
+  const [isSingleModalOpen, setIsSingleModalOpen] = useState<boolean>(false);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Groceries');
   const [unit, setUnit] = useState('1 kg');
@@ -41,13 +37,9 @@ export const InventoryScreen: React.FC = () => {
   const [stock, setStock] = useState('50');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Invoices State
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [invoicesLoading, setInvoicesLoading] = useState<boolean>(false);
-  const [invoiceSearch, setInvoiceSearch] = useState<string>('');
-  const [invoiceFilter, setInvoiceFilter] = useState<'ALL' | 'PAID' | 'UDHAR_KHATA'>('ALL');
-  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState<boolean>(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  // Supplier Invoice Modals
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState<boolean>(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
 
   const fetchProducts = async () => {
     try {
@@ -63,34 +55,13 @@ export const InventoryScreen: React.FC = () => {
     }
   };
 
-  const fetchInvoices = async () => {
-    try {
-      setInvoicesLoading(true);
-      const data = await invoiceApi.getInvoices();
-      setInvoices(data || []);
-    } catch (e) {
-      console.log('Error fetching invoices:', e);
-      setInvoices([]);
-    } finally {
-      setInvoicesLoading(false);
-      setRefreshing(false);
-    }
-  };
-
   useEffect(() => {
     fetchProducts();
-    if (activeTab === 'INVOICES') {
-      fetchInvoices();
-    }
-  }, [shop, activeTab]);
+  }, [shop]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    if (activeTab === 'STOCK') {
-      fetchProducts();
-    } else {
-      fetchInvoices();
-    }
+    fetchProducts();
   };
 
   const handleStockAdjust = async (productId: number, delta: number) => {
@@ -109,7 +80,7 @@ export const InventoryScreen: React.FC = () => {
     }
   };
 
-  const handleCreateProduct = async () => {
+  const handleCreateSingleProduct = async () => {
     if (!name.trim() || !price.trim()) {
       Alert.alert('Required Fields', 'Please enter product name and price.');
       return;
@@ -127,361 +98,165 @@ export const InventoryScreen: React.FC = () => {
 
       setProducts((prev) => [newProd, ...prev]);
       Alert.alert('Product Added 🎉', `${newProd.name} is now live in your store catalog.`);
-      setIsModalOpen(false);
+      setIsSingleModalOpen(false);
       setName('');
       setPrice('');
       setStock('50');
     } catch (e: any) {
       Alert.alert('Notice', e.response?.data?.detail || 'Product added successfully.');
-      setIsModalOpen(false);
+      setIsSingleModalOpen(false);
       fetchProducts();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleInvoiceCreated = (newInv: Invoice) => {
-    setInvoices((prev) => [newInv, ...prev]);
-    // Refresh products to show decremented stock!
+  const handleInvoiceProcessed = (invoice: PurchaseInvoice) => {
+    // Refresh products list to show new products and updated stock
     fetchProducts();
-    // Open the detail modal for immediate receipt preview / print
-    setSelectedInvoice(newInv);
   };
 
-  const filteredProducts = products.filter(
+  const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch =
-      inv.invoice_number.toLowerCase().includes(invoiceSearch.toLowerCase()) ||
-      inv.customer_name.toLowerCase().includes(invoiceSearch.toLowerCase()) ||
-      (inv.customer_phone && inv.customer_phone.includes(invoiceSearch));
-
-    if (!matchesSearch) return false;
-    if (invoiceFilter === 'PAID') return inv.payment_status === 'PAID';
-    if (invoiceFilter === 'UDHAR_KHATA') return inv.payment_method === 'UDHAR_KHATA';
-    return true;
-  });
-
-  // Invoice Statistics
-  const totalBilledAmount = invoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
-  const udharInvoicesCount = invoices.filter((inv) => inv.payment_method === 'UDHAR_KHATA').length;
+  const lowStockCount = products.filter((p) => p.stock_quantity <= 5).length;
 
   return (
     <View style={styles.container}>
       <Header
-        title="Store Inventory & POS"
-        subtitle={`${products.length} catalog items • ${invoices.length} invoices generated`}
+        title="Store Inventory"
+        subtitle={`${products.length} catalog items • ${lowStockCount} low in stock`}
       />
 
-      {/* Segmented Switcher */}
-      <View style={styles.tabSwitcher}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'STOCK' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('STOCK')}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="cube-outline"
-            size={18}
-            color={activeTab === 'STOCK' ? colors.primary.main : colors.text.secondary}
+      {/* Top Action Section */}
+      <View style={styles.actionSection}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={18} color={colors.text.muted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search store inventory..."
+            placeholderTextColor={colors.text.muted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
-          <Text style={[styles.tabBtnText, activeTab === 'STOCK' && styles.tabBtnTextActive]}>
-            📦 Stock & Catalog ({products.length})
-          </Text>
-        </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'INVOICES' && styles.tabBtnActive]}
-          onPress={() => {
-            setActiveTab('INVOICES');
-            fetchInvoices();
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="receipt-outline"
-            size={18}
-            color={activeTab === 'INVOICES' ? colors.primary.main : colors.text.secondary}
-          />
-          <Text style={[styles.tabBtnText, activeTab === 'INVOICES' && styles.tabBtnTextActive]}>
-            🧾 Invoices & Billing ({invoices.length})
-          </Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.btnRow}>
+          <TouchableOpacity
+            style={styles.addInvoiceBtn}
+            onPress={() => setIsInvoiceModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="receipt-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.addInvoiceBtnText}>Add via Invoice</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.addProductBtn}
+            onPress={() => setIsSingleModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Text style={styles.addProductBtnText}>+ Single Item</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.historyBtn}
+            onPress={() => setIsHistoryModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="time-outline" size={18} color={colors.primary.main} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* ===================== TAB 1: STOCK & CATALOG ===================== */}
-      {activeTab === 'STOCK' && (
-        <View style={{ flex: 1 }}>
-          {/* Top Search and Add Row */}
-          <View style={styles.actionSection}>
-            <View style={styles.searchBar}>
-              <Ionicons name="search-outline" size={18} color={colors.text.muted} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search store inventory..."
-                placeholderTextColor={colors.text.muted}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={styles.addProductBtn}
-              onPress={() => setIsModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-              <Text style={styles.addProductBtnText}>Add Item</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Inventory List */}
-          {loading && !refreshing ? (
-            <View style={styles.loaderContainer}>
-              <ActivityIndicator size="large" color={colors.primary.main} />
-              <Text style={styles.loadingText}>Loading inventory...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredProducts}
-              keyExtractor={(item) => String(item.id)}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={[colors.primary.main]}
-                />
-              }
-              renderItem={({ item }) => {
-                const isLowStock = item.stock_quantity <= 5;
-                const priceVal = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
-
-                return (
-                  <View style={styles.productCard}>
-                    <View style={styles.productMain}>
-                      <View style={styles.prodHeader}>
-                        <Text style={styles.productName}>{item.name}</Text>
-                        {isLowStock && (
-                          <View style={styles.lowStockBadge}>
-                            <Text style={styles.lowStockText}>Low Stock</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.categoryText}>
-                        {item.category} • {item.unit}
-                      </Text>
-                      <Text style={styles.priceText}>₹{priceVal.toFixed(2)}</Text>
-                    </View>
-
-                    {/* Stock Controls */}
-                    <View style={styles.stockControlSection}>
-                      <Text style={styles.stockLabel}>Stock</Text>
-                      <View style={styles.stockControls}>
-                        <TouchableOpacity
-                          style={styles.stockBtn}
-                          onPress={() => handleStockAdjust(item.id, -1)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="remove" size={16} color={colors.text.primary} />
-                        </TouchableOpacity>
-                        <Text style={[styles.stockValue, isLowStock && styles.lowStockVal]}>
-                          {item.stock_quantity}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.stockBtn}
-                          onPress={() => handleStockAdjust(item.id, 1)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="add" size={16} color={colors.text.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                );
-              }}
-              ListEmptyComponent={
-                <EmptyState
-                  icon="cube-outline"
-                  title="No products in inventory"
-                  description="Add your store grocery items, flours, dairy, and snacks so nearby customers can order."
-                  actionLabel="+ Add First Product"
-                  onActionPress={() => setIsModalOpen(true)}
-                />
-              }
-            />
-          )}
+      {/* Inventory List */}
+      {loading && !refreshing ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading store inventory...</Text>
         </View>
-      )}
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary.main]}
+            />
+          }
+          renderItem={({ item }) => {
+            const isLowStock = item.stock_quantity <= 5;
+            const priceVal = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
 
-      {/* ===================== TAB 2: INVOICES & BILLING ===================== */}
-      {activeTab === 'INVOICES' && (
-        <View style={{ flex: 1 }}>
-          {/* Summary Stat Cards */}
-          <View style={styles.metricsRow}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Total Invoiced</Text>
-              <Text style={styles.metricValue}>₹{totalBilledAmount.toFixed(0)}</Text>
-              <Text style={styles.metricSub}>{invoices.length} total bills</Text>
-            </View>
-
-            <View style={[styles.metricCard, { borderLeftColor: '#F59E0B' }]}>
-              <Text style={styles.metricLabel}>Udhar Khata Bills</Text>
-              <Text style={[styles.metricValue, { color: '#D97706' }]}>{udharInvoicesCount}</Text>
-              <Text style={styles.metricSub}>Added to ledger</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.newInvoiceCtaCard}
-              onPress={() => setIsCreateInvoiceOpen(true)}
-              activeOpacity={0.85}
-            >
-              <View style={styles.ctaIconWrap}>
-                <Ionicons name="add" size={22} color="#FFFFFF" />
-              </View>
-              <Text style={styles.ctaTitle}>➕ New Bill / POS</Text>
-              <Text style={styles.ctaSub}>Counter Sale</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Search & Filter Row */}
-          <View style={styles.actionSection}>
-            <View style={styles.searchBar}>
-              <Ionicons name="search-outline" size={18} color={colors.text.muted} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search by invoice # or customer..."
-                placeholderTextColor={colors.text.muted}
-                value={invoiceSearch}
-                onChangeText={setInvoiceSearch}
-              />
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterPills}>
-              <TouchableOpacity
-                style={[styles.filterPill, invoiceFilter === 'ALL' && styles.filterPillActive]}
-                onPress={() => setInvoiceFilter('ALL')}
-              >
-                <Text style={[styles.filterText, invoiceFilter === 'ALL' && styles.filterTextActive]}>
-                  All ({invoices.length})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.filterPill, invoiceFilter === 'PAID' && styles.filterPillActive]}
-                onPress={() => setInvoiceFilter('PAID')}
-              >
-                <Text style={[styles.filterText, invoiceFilter === 'PAID' && styles.filterTextActive]}>
-                  Paid
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.filterPill, invoiceFilter === 'UDHAR_KHATA' && styles.filterPillActive]}
-                onPress={() => setInvoiceFilter('UDHAR_KHATA')}
-              >
-                <Text style={[styles.filterText, invoiceFilter === 'UDHAR_KHATA' && styles.filterTextActive]}>
-                  Udhar
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-
-          {/* Invoices List */}
-          {invoicesLoading && !refreshing ? (
-            <View style={styles.loaderContainer}>
-              <ActivityIndicator size="large" color={colors.primary.main} />
-              <Text style={styles.loadingText}>Loading store invoices...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredInvoices}
-              keyExtractor={(item) => String(item.id)}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={[colors.primary.main]}
-                />
-              }
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.invoiceCard}
-                  onPress={() => setSelectedInvoice(item)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.invCardLeft}>
-                    <View style={styles.invHeaderRow}>
-                      <Text style={styles.invNumber}>#{item.invoice_number}</Text>
-                      <View
-                        style={[
-                          styles.invBadge,
-                          item.payment_status === 'PAID' ? styles.invBadgePaid : styles.invBadgePending,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.invBadgeText,
-                            item.payment_status === 'PAID' ? styles.invBadgeTextPaid : styles.invBadgeTextPending,
-                          ]}
-                        >
-                          {item.payment_method} • {item.payment_status}
-                        </Text>
+            return (
+              <View style={styles.productCard}>
+                <View style={styles.productMain}>
+                  <View style={styles.prodHeader}>
+                    <Text style={styles.productName}>{item.name}</Text>
+                    {isLowStock && (
+                      <View style={styles.lowStockBadge}>
+                        <Text style={styles.lowStockText}>Low Stock</Text>
                       </View>
-                    </View>
+                    )}
+                  </View>
+                  <Text style={styles.categoryText}>
+                    {item.category} • {item.unit}
+                  </Text>
+                  <Text style={styles.priceText}>₹{priceVal.toFixed(2)}</Text>
+                </View>
 
-                    <Text style={styles.invCustomer}>{item.customer_name}</Text>
-                    <Text style={styles.invDate}>
-                      {new Date(item.created_at).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {item.items ? ` • ${item.items.length} items` : ''}
+                {/* Stock Controls */}
+                <View style={styles.stockControlSection}>
+                  <Text style={styles.stockLabel}>Current Stock</Text>
+                  <View style={styles.stockControls}>
+                    <TouchableOpacity
+                      style={styles.stockBtn}
+                      onPress={() => handleStockAdjust(item.id, -1)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="remove" size={16} color={colors.text.primary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.stockValue, isLowStock && styles.lowStockVal]}>
+                      {item.stock_quantity}
                     </Text>
+                    <TouchableOpacity
+                      style={styles.stockBtn}
+                      onPress={() => handleStockAdjust(item.id, 1)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="add" size={16} color={colors.text.primary} />
+                    </TouchableOpacity>
                   </View>
-
-                  <View style={styles.invCardRight}>
-                    <Text style={styles.invAmount}>₹{Number(item.total_amount).toFixed(2)}</Text>
-                    <View style={styles.invActionRow}>
-                      <TouchableOpacity
-                        style={styles.invViewBtn}
-                        onPress={() => setSelectedInvoice(item)}
-                      >
-                        <Ionicons name="eye-outline" size={14} color={colors.primary.main} />
-                        <Text style={styles.invViewText}>View Bill</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <EmptyState
-                  icon="receipt-outline"
-                  title="No invoices generated yet"
-                  description="Generate instant counter bills and Point-of-Sale receipts for your walk-in and regular customers."
-                  actionLabel="+ Create First Invoice"
-                  onActionPress={() => setIsCreateInvoiceOpen(true)}
-                />
-              }
+                </View>
+              </View>
+            );
+          }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="cube-outline"
+              title="No products in inventory"
+              description="Add single items or bulk import your grocery products from a supplier purchase invoice."
+              actionLabel="🧾 Add via Supplier Invoice"
+              onActionPress={() => setIsInvoiceModalOpen(true)}
             />
-          )}
-        </View>
+          }
+        />
       )}
 
-      {/* Add Product Modal */}
+      {/* Add Single Product Modal */}
       <ModalDialog
-        visible={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add New Store Item"
+        visible={isSingleModalOpen}
+        onClose={() => setIsSingleModalOpen(false)}
+        title="Add Single Store Item"
       >
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Item Name</Text>
@@ -539,7 +314,7 @@ export const InventoryScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.saveProductBtn}
-          onPress={handleCreateProduct}
+          onPress={handleCreateSingleProduct}
           disabled={isSubmitting}
           activeOpacity={0.85}
         >
@@ -551,21 +326,18 @@ export const InventoryScreen: React.FC = () => {
         </TouchableOpacity>
       </ModalDialog>
 
-      {/* POS Create Invoice Modal */}
-      <CreateInvoiceModal
-        visible={isCreateInvoiceOpen}
-        onClose={() => setIsCreateInvoiceOpen(false)}
-        onInvoiceCreated={handleInvoiceCreated}
-        products={products}
-        shop={shop}
+      {/* Add from Supplier Invoice Modal */}
+      <AddFromInvoiceModal
+        visible={isInvoiceModalOpen}
+        onClose={() => setIsInvoiceModalOpen(false)}
+        onInvoiceSaved={handleInvoiceProcessed}
+        existingProducts={products}
       />
 
-      {/* Invoice Detail / Print / WhatsApp Modal */}
-      <InvoiceDetailModal
-        visible={!!selectedInvoice}
-        onClose={() => setSelectedInvoice(null)}
-        invoice={selectedInvoice}
-        shop={shop}
+      {/* Supplier Invoice History Modal */}
+      <SupplierInvoiceHistoryModal
+        visible={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
       />
     </View>
   );
@@ -576,97 +348,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.default,
   },
-  tabSwitcher: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  tabBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.background.subtle,
-    marginRight: 8,
-  },
-  tabBtnActive: {
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: colors.primary.main,
-  },
-  tabBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    marginLeft: 6,
-  },
-  tabBtnTextActive: {
-    color: colors.primary.main,
-    fontWeight: '700',
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 10,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary.main,
-  },
-  metricLabel: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    fontWeight: '600',
-  },
-  metricValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text.primary,
-    marginTop: 2,
-  },
-  metricSub: {
-    fontSize: 10,
-    color: colors.text.muted,
-    marginTop: 2,
-  },
-  newInvoiceCtaCard: {
-    flex: 1.2,
-    backgroundColor: colors.primary.main,
-    padding: 12,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ctaIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  ctaTitle: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  ctaSub: {
-    color: '#E0E7FF',
-    fontSize: 10,
-  },
   actionSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -675,10 +356,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: colors.border.subtle,
-    gap: 10,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   searchBar: {
     flex: 1,
+    minWidth: 200,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.background.subtle,
@@ -694,40 +377,47 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text.primary,
   },
-  filterPills: {
+  btnRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  filterPill: {
+  addInvoiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: colors.background.subtle,
-    marginRight: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 4,
   },
-  filterPillActive: {
-    backgroundColor: colors.primary.main,
-  },
-  filterText: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    fontWeight: '600',
-  },
-  filterTextActive: {
+  addInvoiceBtnText: {
     color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   addProductBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary.main,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
     gap: 4,
   },
   addProductBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
+  },
+  historyBtn: {
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loaderContainer: {
     flex: 1,
@@ -752,6 +442,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.subtle,
     marginBottom: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
   },
   productMain: {
     flex: 1,
@@ -822,87 +517,6 @@ const styles = StyleSheet.create({
   },
   lowStockVal: {
     color: colors.danger.dark,
-  },
-  invoiceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 10,
-  },
-  invCardLeft: {
-    flex: 1,
-  },
-  invHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  invNumber: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.text.primary,
-  },
-  invBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  invBadgePaid: {
-    backgroundColor: '#DCFCE7',
-  },
-  invBadgePending: {
-    backgroundColor: '#FEF3C7',
-  },
-  invBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  invBadgeTextPaid: {
-    color: '#15803D',
-  },
-  invBadgeTextPending: {
-    color: '#B45309',
-  },
-  invCustomer: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginTop: 3,
-  },
-  invDate: {
-    fontSize: 11,
-    color: colors.text.muted,
-    marginTop: 2,
-  },
-  invCardRight: {
-    alignItems: 'flex-end',
-  },
-  invAmount: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.primary.main,
-  },
-  invActionRow: {
-    marginTop: 4,
-  },
-  invViewBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: '#EEF2FF',
-    gap: 4,
-  },
-  invViewText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary.main,
   },
   inputGroup: {
     marginBottom: 12,

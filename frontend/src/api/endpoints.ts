@@ -11,8 +11,8 @@ import {
   ShopkeeperCustomerCredit,
   Notification,
   ShoppingList,
-  Invoice,
-  InvoiceItem,
+  PurchaseInvoice,
+  PurchaseInvoiceItem,
 } from '../types';
 
 export const authApi = {
@@ -469,43 +469,39 @@ export const parchiApi = {
 };
 
 export const invoiceApi = {
-  createInvoice: async (data: {
-    customer_id?: number | null;
-    customer_name: string;
-    customer_phone?: string;
+  createPurchaseInvoice: async (data: {
+    supplier_name: string;
+    supplier_phone?: string;
+    invoice_number: string;
+    invoice_date?: string;
+    total_amount?: number | string;
+    notes?: string;
     items: {
       product_id?: number | null;
       product_name: string;
-      unit: string;
+      category?: string;
+      unit?: string;
       quantity: number;
-      unit_price: number | string;
-      total_price: number | string;
+      purchase_price: number | string;
+      selling_price: number | string;
+      total_cost?: number | string;
     }[];
-    subtotal_amount: number | string;
-    discount_amount?: number | string;
-    tax_amount?: number | string;
-    total_amount: number | string;
-    payment_method: string;
-    payment_status?: string;
-    notes?: string;
-  }): Promise<Invoice> => {
-    const res = await apiClient.post<Invoice>('/api/v1/invoices', data);
+  }): Promise<PurchaseInvoice> => {
+    const res = await apiClient.post<PurchaseInvoice>('/api/v1/invoices/purchase', data);
     return res.data;
   },
 
-  getInvoices: async (params?: {
+  getPurchaseInvoices: async (params?: {
     search?: string;
-    payment_method?: string;
-    payment_status?: string;
     limit?: number;
     offset?: number;
-  }): Promise<Invoice[]> => {
-    const res = await apiClient.get<Invoice[]>('/api/v1/invoices', { params });
+  }): Promise<PurchaseInvoice[]> => {
+    const res = await apiClient.get<PurchaseInvoice[]>('/api/v1/invoices/purchase', { params });
     return res.data;
   },
 
-  getInvoiceById: async (invoiceId: number): Promise<Invoice> => {
-    const res = await apiClient.get<Invoice>(`/api/v1/invoices/${invoiceId}`);
+  getPurchaseInvoiceById: async (invoiceId: number): Promise<PurchaseInvoice> => {
+    const res = await apiClient.get<PurchaseInvoice>(`/api/v1/invoices/purchase/${invoiceId}`);
     return res.data;
   },
 };

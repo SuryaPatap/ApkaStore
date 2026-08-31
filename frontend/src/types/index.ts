@@ -207,32 +207,29 @@ export interface ShoppingList {
   items: ShoppingListItem[];
 }
 
-export interface InvoiceItem {
+export interface PurchaseInvoiceItem {
   id?: number;
   invoice_id?: number;
   product_id?: number | null;
   product_name: string;
-  unit: string;
+  category?: string;
+  unit?: string;
   quantity: number;
-  unit_price: number | string;
-  total_price: number | string;
+  purchase_price: number | string;
+  selling_price: number | string;
+  total_cost?: number | string;
 }
 
-export interface Invoice {
+export interface PurchaseInvoice {
   id: number;
   shop_id: number;
+  supplier_name: string;
+  supplier_phone?: string | null;
   invoice_number: string;
-  customer_id?: number | null;
-  customer_name: string;
-  customer_phone?: string | null;
-  subtotal_amount: number | string;
-  discount_amount: number | string;
-  tax_amount: number | string;
+  invoice_date?: string;
   total_amount: number | string;
-  payment_method: 'CASH' | 'UPI' | 'UDHAR_KHATA' | string;
-  payment_status: 'PAID' | 'PENDING' | string;
   notes?: string | null;
   created_at: string;
-  items: InvoiceItem[];
+  items: PurchaseInvoiceItem[];
 }
 
