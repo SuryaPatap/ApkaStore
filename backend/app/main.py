@@ -22,6 +22,7 @@ from .routers.checkout import router as checkout_router
 from .routers.credit_account import router as credit_account_router
 from .routers.credit_payment import router as credit_payment_router
 from .routers.parchi import router as parchi_router
+from .routers.invoice import router as invoice_router
 
 
 app = FastAPI(
@@ -73,6 +74,7 @@ app.include_router(checkout_router)
 app.include_router(credit_account_router)
 app.include_router(credit_payment_router)
 app.include_router(parchi_router)
+app.include_router(invoice_router)
 
 
 # ============================================================

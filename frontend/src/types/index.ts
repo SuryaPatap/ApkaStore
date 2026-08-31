@@ -206,3 +206,33 @@ export interface ShoppingList {
   status?: string;
   items: ShoppingListItem[];
 }
+
+export interface InvoiceItem {
+  id?: number;
+  invoice_id?: number;
+  product_id?: number | null;
+  product_name: string;
+  unit: string;
+  quantity: number;
+  unit_price: number | string;
+  total_price: number | string;
+}
+
+export interface Invoice {
+  id: number;
+  shop_id: number;
+  invoice_number: string;
+  customer_id?: number | null;
+  customer_name: string;
+  customer_phone?: string | null;
+  subtotal_amount: number | string;
+  discount_amount: number | string;
+  tax_amount: number | string;
+  total_amount: number | string;
+  payment_method: 'CASH' | 'UPI' | 'UDHAR_KHATA' | string;
+  payment_status: 'PAID' | 'PENDING' | string;
+  notes?: string | null;
+  created_at: string;
+  items: InvoiceItem[];
+}
+

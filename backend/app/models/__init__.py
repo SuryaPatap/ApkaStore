@@ -26,6 +26,7 @@ from .monthly_settlement import MonthlySettlement
 
 from .parchi import Parchi
 from .parchi_message import ParchiMessage
+from .invoice import Invoice, InvoiceItem
 
 
 __all__ = [
@@ -53,4 +54,6 @@ __all__ = [
     "MonthlySettlement",
     "Parchi",
     "ParchiMessage",
+    "Invoice",
+    "InvoiceItem",
 ]
