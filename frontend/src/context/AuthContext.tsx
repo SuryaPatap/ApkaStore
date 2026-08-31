@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, Shop, Address } from '../types';
 import { authApi, shopApi, customerApi } from '../api/endpoints';
 import { setAuthToken } from '../api/client';
+import { storage } from '../utils/storage';
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +33,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedShop, setSelectedShopState] = useState<Shop | null>(null);
   const [nearbyShops, setNearbyShops] = useState<Shop[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Restore authenticated session on app start / reload
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const savedToken = storage.getItem(storage.KEYS.TOKEN);
+        const savedRole = storage.getItem(storage.KEYS.ROLE) as UserRole | null;
+        const savedUserStr = storage.getItem(storage.KEYS.USER);
+        const savedShopStr = storage.getItem(storage.KEYS.SHOP);
+
+        if (savedToken && savedUserStr) {
+          const parsedUser: User = JSON.parse(savedUserStr);
+          const parsedRole: UserRole = savedRole || parsedUser.role || 'CUSTOMER';
+
+          setAuthToken(savedToken);
+          setToken(savedToken);
+          setUser(parsedUser);
+          setRole(parsedRole);
+
+          if (savedShopStr) {
+            try {
+              setShop(JSON.parse(savedShopStr));
+            } catch {
+              // silent
+            }
+          }
+
+          // Validate token in background and refresh profile
+          if (parsedRole === 'CUSTOMER') {
+            try {
+              const me = await customerApi.getMe();
+              if (me) {
+                const updated = { ...parsedUser, ...me };
+                setUser(updated);
+                storage.setItem(storage.KEYS.USER, JSON.stringify(updated));
+              }
+            } catch (err: any) {
+              const msg = err?.message || '';
+              if (msg.includes('401') || msg.includes('Invalid or expired token') || msg.includes('Could not validate')) {
+                logout();
+                return;
+              }
+            }
+            try {
+              const shops = await shopApi.getNearbyShops({ max_distance_km: 2.0 });
+              setNearbyShops(shops);
+              if (shops.length > 0) {
+                const currentlySelected = shops.find((s) => s.is_selected) || shops[0];
+                setSelectedShopState(currentlySelected);
+              }
+            } catch {
+              // silent
+            }
+          } else if (parsedRole === 'SHOPKEEPER') {
+            try {
+              const shopData = await shopApi.getMyShop();
+              if (shopData) {
+                setShop(shopData);
+                storage.setItem(storage.KEYS.SHOP, JSON.stringify(shopData));
+              }
+            } catch (err: any) {
+              const msg = err?.message || '';
+              if (msg.includes('401') || msg.includes('Invalid or expired token') || msg.includes('Could not validate')) {
+                logout();
+                return;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error restoring auth session:', err);
+      }
+    };
+
+    restoreSession();
+  }, []);
 
   const refreshNearbyShops = async (): Promise<Shop[]> => {
     try {
@@ -69,7 +146,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const me = await customerApi.getMe();
         if (me && user) {
-          setUser((prev) => (prev ? { ...prev, ...me } : prev));
+          const updated = { ...user, ...me };
+          setUser(updated);
+          storage.setItem(storage.KEYS.USER, JSON.stringify(updated));
         }
       } catch (e) {
         // Silent error handling
@@ -79,6 +158,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const shopData = await shopApi.getMyShop();
         setShop(shopData);
+        if (shopData) {
+          storage.setItem(storage.KEYS.SHOP, JSON.stringify(shopData));
+        }
       } catch (e) {
         // Silent error handling
       }
@@ -93,6 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const accessToken = data.access_token;
       setAuthToken(accessToken);
       setToken(accessToken);
+      storage.setItem(storage.KEYS.TOKEN, accessToken);
 
       const resolvedRole: UserRole =
         (data.role?.toUpperCase() as UserRole) ||
@@ -100,6 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         preferredRole;
 
       setRole(resolvedRole);
+      storage.setItem(storage.KEYS.ROLE, resolvedRole);
 
       // Fetch dynamic user profile from backend
       let profileUser: User = data.user || {
@@ -123,11 +207,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setUser(profileUser);
+      storage.setItem(storage.KEYS.USER, JSON.stringify(profileUser));
 
       if (resolvedRole === 'SHOPKEEPER') {
         try {
           const shopData = await shopApi.getMyShop();
           setShop(shopData);
+          if (shopData) {
+            storage.setItem(storage.KEYS.SHOP, JSON.stringify(shopData));
+          }
         } catch (e) {
           setShop(null);
         }
@@ -169,17 +257,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSelectedShopState(null);
     setNearbyShops([]);
     setAuthToken(null);
+    storage.clear();
   };
 
   const switchRole = (newRole: UserRole) => {
     setRole(newRole);
+    storage.setItem(storage.KEYS.ROLE, newRole);
     if (user) {
-      setUser({ ...user, role: newRole });
+      const updated = { ...user, role: newRole };
+      setUser(updated);
+      storage.setItem(storage.KEYS.USER, JSON.stringify(updated));
     }
   };
 
   const setMyShop = (newShop: Shop) => {
     setShop(newShop);
+    if (newShop) {
+      storage.setItem(storage.KEYS.SHOP, JSON.stringify(newShop));
+    }
   };
 
   return (
