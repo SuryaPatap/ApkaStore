@@ -18,6 +18,8 @@ import { Header } from '../../components/Header';
 import { ModalDialog } from '../../components/ModalDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { creditApi } from '../../api/endpoints';
+import { useAuth } from '../../context/AuthContext';
+import { sendWhatsApp, generateKhataReminderMessage } from '../../utils/whatsapp';
 import {
   CreditRequest,
   ShopkeeperCustomerCredit,
@@ -25,6 +27,7 @@ import {
 } from '../../types';
 
 export const KhataManageScreen: React.FC = () => {
+  const { shop } = useAuth();
   const [activeTab, setActiveTab] = useState<'REQUESTS' | 'ACCOUNTS'>('REQUESTS');
   const [requests, setRequests] = useState<CreditRequest[]>([]);
   const [accounts, setAccounts] = useState<ShopkeeperCustomerCredit[]>([]);
@@ -137,6 +140,12 @@ export const KhataManageScreen: React.FC = () => {
     } finally {
       setIsSubmittingPayment(false);
     }
+  };
+
+  const handleSendWhatsAppReminder = (customer: ShopkeeperCustomerCredit) => {
+    const outst = parseFloat(String(customer.outstanding_amount || 0));
+    const msg = generateKhataReminderMessage(shop, customer.customer_name, outst);
+    sendWhatsApp(customer.customer_phone, msg);
   };
 
   return (
@@ -289,17 +298,32 @@ export const KhataManageScreen: React.FC = () => {
                     <Text style={styles.phoneText}>📞 {item.customer_phone}</Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.recordPayBtn}
-                    onPress={() => {
-                      setPaymentCustomer(item);
-                      setIsPaymentModalVisible(true);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="add-circle" size={16} color="#FFFFFF" />
-                    <Text style={styles.recordPayBtnText}>+ Payment</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <TouchableOpacity
+                      style={styles.waKhataBtn}
+                      onPress={(e: any) => {
+                        if (e && e.stopPropagation) e.stopPropagation();
+                        handleSendWhatsAppReminder(item);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="logo-whatsapp" size={13} color="#FFFFFF" />
+                      <Text style={styles.waKhataBtnText}>Remind</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.recordPayBtn}
+                      onPress={(e: any) => {
+                        if (e && e.stopPropagation) e.stopPropagation();
+                        setPaymentCustomer(item);
+                        setIsPaymentModalVisible(true);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="add-circle" size={15} color="#FFFFFF" />
+                      <Text style={styles.recordPayBtnText}>+ Pay</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.duesRow}>
@@ -451,6 +475,19 @@ export const KhataManageScreen: React.FC = () => {
             {/* Bottom Actions */}
             <View style={styles.ledgerModalFooter}>
               <TouchableOpacity
+                style={styles.waLedgerFooterBtn}
+                onPress={() => {
+                  if (viewingCustomer) {
+                    handleSendWhatsAppReminder(viewingCustomer);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="logo-whatsapp" size={17} color="#fff" />
+                <Text style={styles.waLedgerFooterBtnText}>WhatsApp Reminder</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={styles.logPaymentFooterBtn}
                 onPress={() => {
                   if (viewingCustomer) {
@@ -458,8 +495,9 @@ export const KhataManageScreen: React.FC = () => {
                     setIsPaymentModalVisible(true);
                   }
                 }}
+                activeOpacity={0.85}
               >
-                <Ionicons name="cash-outline" size={18} color="#fff" />
+                <Ionicons name="cash-outline" size={17} color="#fff" />
                 <Text style={styles.logPaymentFooterBtnText}>+ Record Payment</Text>
               </TouchableOpacity>
             </View>
@@ -681,12 +719,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary.main,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 7,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 4,
   },
   recordPayBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  waKhataBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#25D366',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  waKhataBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
@@ -851,19 +903,34 @@ const styles = StyleSheet.create({
   ledgerModalFooter: {
     paddingHorizontal: 20,
     paddingTop: 10,
+    gap: 8,
+  },
+  waLedgerFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#25D366',
+    paddingVertical: 13,
+    borderRadius: 14,
+    gap: 6,
+  },
+  waLedgerFooterBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
   },
   logPaymentFooterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary.main,
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 14,
     gap: 6,
   },
   logPaymentFooterBtnText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   modalSub: {

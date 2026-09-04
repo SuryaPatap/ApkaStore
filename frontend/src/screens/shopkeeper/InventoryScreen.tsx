@@ -17,6 +17,7 @@ import { ModalDialog } from '../../components/ModalDialog';
 import { EmptyState } from '../../components/EmptyState';
 import { AddFromInvoiceModal } from '../../components/AddFromInvoiceModal';
 import { SupplierInvoiceHistoryModal } from '../../components/SupplierInvoiceHistoryModal';
+import { WhatsAppBroadcastModal } from '../../components/WhatsAppBroadcastModal';
 import { useAuth } from '../../context/AuthContext';
 import { shopApi } from '../../api/endpoints';
 import { Product, PurchaseInvoice } from '../../types';
@@ -40,6 +41,11 @@ export const InventoryScreen: React.FC = () => {
   // Supplier Invoice Modals
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+
+  // WhatsApp Broadcast Modal
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
+  const [whatsAppPromoType, setWhatsAppPromoType] = useState<'NEW_ARRIVALS' | 'OFFER' | 'ANNOUNCEMENT'>('NEW_ARRIVALS');
+  const [promoProducts, setPromoProducts] = useState<Product[]>([]);
 
   const fetchProducts = async () => {
     try {
@@ -113,6 +119,21 @@ export const InventoryScreen: React.FC = () => {
 
   const handleInvoiceProcessed = (_invoice: PurchaseInvoice) => {
     fetchProducts();
+    // Offer to broadcast new stock on WhatsApp
+    Alert.alert(
+      'Broadcast on WhatsApp? 📢',
+      'Would you like to announce these newly restocked items to your customers on WhatsApp?',
+      [
+        { text: 'Later', style: 'cancel' },
+        {
+          text: '📢 Open WhatsApp Broadcast',
+          onPress: () => {
+            setWhatsAppPromoType('NEW_ARRIVALS');
+            setIsWhatsAppModalOpen(true);
+          },
+        },
+      ]
+    );
   };
 
   const filtered = products.filter(
@@ -149,14 +170,14 @@ export const InventoryScreen: React.FC = () => {
           ) : null}
         </View>
 
-        {/* Buttons Row */}
+        {/* Action Buttons Row */}
         <View style={styles.actionButtonsRow}>
           <TouchableOpacity
             style={styles.invoiceBtn}
             onPress={() => setIsInvoiceModalOpen(true)}
             activeOpacity={0.85}
           >
-            <Ionicons name="receipt" size={16} color="#FFFFFF" />
+            <Ionicons name="receipt" size={15} color="#FFFFFF" />
             <Text style={styles.invoiceBtnText}>Add via Invoice</Text>
           </TouchableOpacity>
 
@@ -165,8 +186,20 @@ export const InventoryScreen: React.FC = () => {
             onPress={() => setIsSingleModalOpen(true)}
             activeOpacity={0.85}
           >
-            <Ionicons name="add" size={18} color="#FFFFFF" />
-            <Text style={styles.singleItemBtnText}>+ Single Item</Text>
+            <Ionicons name="add" size={16} color="#FFFFFF" />
+            <Text style={styles.singleItemBtnText}>+ Item</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.waPromoBtn}
+            onPress={() => {
+              setWhatsAppPromoType('NEW_ARRIVALS');
+              setIsWhatsAppModalOpen(true);
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="logo-whatsapp" size={15} color="#FFFFFF" />
+            <Text style={styles.waPromoBtnText}>WhatsApp Promo</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -174,8 +207,7 @@ export const InventoryScreen: React.FC = () => {
             onPress={() => setIsHistoryModalOpen(true)}
             activeOpacity={0.8}
           >
-            <Ionicons name="time-outline" size={18} color={colors.primary.main} />
-            <Text style={styles.historyBtnText}>Bills</Text>
+            <Ionicons name="time-outline" size={16} color={colors.primary.main} />
           </TouchableOpacity>
         </View>
       </View>
@@ -345,6 +377,16 @@ export const InventoryScreen: React.FC = () => {
         visible={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
       />
+
+      {/* WhatsApp Marketing & Broadcast Modal */}
+      <WhatsAppBroadcastModal
+        visible={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        products={products}
+        shop={shop}
+        initialType={whatsAppPromoType}
+        preSelectedProducts={promoProducts}
+      />
     </View>
   );
 };
@@ -382,18 +424,20 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   invoiceBtn: {
-    flex: 1.3,
+    flex: 1.2,
+    minWidth: 110,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0F172A',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 9,
+    gap: 5,
   },
   invoiceBtnText: {
     color: '#FFFFFF',
@@ -401,36 +445,48 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   singleItemBtn: {
-    flex: 1.1,
+    flex: 0.9,
+    minWidth: 70,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary.main,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    gap: 4,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 9,
+    gap: 3,
   },
   singleItemBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
   },
-  historyBtn: {
+  waPromoBtn: {
+    flex: 1.4,
+    minWidth: 130,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#25D366',
     paddingVertical: 9,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: 9,
+    gap: 5,
+  },
+  waPromoBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  historyBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 9,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: '#C7D2FE',
     backgroundColor: '#EEF2FF',
-    gap: 4,
-  },
-  historyBtnText: {
-    color: colors.primary.main,
-    fontSize: 12,
-    fontWeight: '700',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loaderContainer: {
     flex: 1,

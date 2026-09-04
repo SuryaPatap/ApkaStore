@@ -17,6 +17,8 @@ import { Colors, colors } from '../theme/colors';
 import { Order, OrderStatus } from '../types';
 import { Badge } from './Badge';
 import { orderApi } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext';
+import { sendWhatsApp, generateOrderBillMessage } from '../utils/whatsapp';
 
 interface OrderCardProps {
   order: Order;
@@ -105,6 +107,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         minute: '2-digit',
       })
     : 'Just now';
+
+  const { shop } = useAuth();
+
+  const handleWhatsAppBill = () => {
+    const msg = generateOrderBillMessage(shop, currentOrder);
+    sendWhatsApp(currentOrder.customer_phone, msg);
+  };
 
   const handleCall = () => {
     if (currentOrder.customer_phone) {
@@ -281,12 +290,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             )}
 
             {currentOrder.customer_phone && (
-              <TouchableOpacity style={styles.customerRow} onPress={handleCall} activeOpacity={0.8}>
-                <Ionicons name="call" size={13} color="#059669" />
-                <Text style={[styles.customerPhone, { color: '#059669' }]}>
-                  {currentOrder.customer_phone} (Tap to Call)
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <TouchableOpacity style={styles.customerRow} onPress={handleCall} activeOpacity={0.8}>
+                  <Ionicons name="call" size={13} color="#059669" />
+                  <Text style={[styles.customerPhone, { color: '#059669' }]}>
+                    {currentOrder.customer_phone} (Call)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.waInlineBtn} onPress={handleWhatsAppBill} activeOpacity={0.8}>
+                  <Ionicons name="logo-whatsapp" size={13} color="#166534" />
+                  <Text style={styles.waInlineBtnText}>WhatsApp Bill</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {currentOrder.customer_address && (
@@ -379,8 +395,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               onPress={handleOpenReceipt}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewReceiptBtnText}>View Receipt</Text>
+              <Text style={styles.viewReceiptBtnText}>Receipt</Text>
             </TouchableOpacity>
+
+            {isShopkeeper && (
+              <TouchableOpacity
+                style={styles.waFooterBtn}
+                onPress={handleWhatsAppBill}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="logo-whatsapp" size={13} color="#FFFFFF" />
+                <Text style={styles.waFooterBtnText}>Bill</Text>
+              </TouchableOpacity>
+            )}
 
             {isShopkeeper && onUpdateStatus && !isDelivered && (
               <View style={styles.statusActions}>
@@ -835,20 +862,31 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               )}
 
               {/* Action Buttons */}
-              {isShopkeeper && onUpdateStatus && !isDelivered && (
+              {isShopkeeper && (
                 <View style={rc.actionSection}>
-                  {currentOrder.status === 'PENDING' && (
-                    <TouchableOpacity
-                      style={[rc.mainActionBtn, { backgroundColor: Colors.info }]}
-                      onPress={() => {
-                        setShowReceipt(false);
-                        onUpdateStatus('PROCESSING');
-                      }}
-                    >
-                      <Ionicons name="cube" size={18} color="#fff" />
-                      <Text style={rc.mainActionBtnText}>Accept Order & Start Packing</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    style={[rc.mainActionBtn, { backgroundColor: '#25D366', marginBottom: 10 }]}
+                    onPress={handleWhatsAppBill}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="logo-whatsapp" size={18} color="#fff" />
+                    <Text style={rc.mainActionBtnText}>Send Digital Bill on WhatsApp</Text>
+                  </TouchableOpacity>
+
+                  {onUpdateStatus && !isDelivered && (
+                    <>
+                      {currentOrder.status === 'PENDING' && (
+                        <TouchableOpacity
+                          style={[rc.mainActionBtn, { backgroundColor: Colors.info }]}
+                          onPress={() => {
+                            setShowReceipt(false);
+                            onUpdateStatus('PROCESSING');
+                          }}
+                        >
+                          <Ionicons name="cube" size={18} color="#fff" />
+                          <Text style={rc.mainActionBtnText}>Accept Order & Start Packing</Text>
+                        </TouchableOpacity>
+                      )}
 
                   {currentOrder.status === 'PROCESSING' && (
                     <TouchableOpacity
@@ -870,6 +908,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                     <Ionicons name="shield-checkmark" size={18} color="#fff" />
                     <Text style={rc.mainActionBtnText}>Mark Order Completed & Delivered</Text>
                   </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -1096,6 +1136,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: colors.primary.main,
+  },
+  waFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#25D366',
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 10,
+    gap: 4,
+  },
+  waFooterBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  waInlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    gap: 4,
+  },
+  waInlineBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
   },
   statusActions: {
     flexDirection: 'row',

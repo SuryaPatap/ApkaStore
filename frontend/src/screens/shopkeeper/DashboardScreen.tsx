@@ -11,8 +11,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/Header';
+import { WhatsAppBroadcastModal } from '../../components/WhatsAppBroadcastModal';
 import { useAuth } from '../../context/AuthContext';
 import { orderApi, creditApi, shopApi } from '../../api/endpoints';
+import { Product } from '../../types';
 
 interface DashboardScreenProps {
   onNavigateToOrders: () => void;
@@ -28,45 +30,46 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const { shop } = useAuth();
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
-  const [stats, setStats] = useState({
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+
+  const [stats, setStats] = useState<{
+    activeOrdersCount: number;
+    pendingCreditRequests: number;
+    lowStockCount: number;
+    totalTodaySales: number;
+  }>({
     activeOrdersCount: 0,
     pendingCreditRequests: 0,
     lowStockCount: 0,
-    totalTodaySales: 0.0,
+    totalTodaySales: 0,
   });
 
-  const fetchDashboardStats = async (silent = false) => {
+  const fetchDashboardStats = async (silent: boolean = false) => {
     try {
-      if (!silent) setRefreshing(true);
-      const [orders, creditReqs, inventory] = await Promise.all([
+      if (!silent) setLoading(true);
+
+      const [orders, creditRequests, prods] = await Promise.all([
         orderApi.getShopkeeperOrders().catch(() => []),
-        creditApi.getShopkeeperCreditRequests().catch(() => []),
-        shopApi.getInventory().catch(() => []),
+        creditApi.getShopkeeperAccounts().catch(() => []),
+        shopApi.getShopProducts(shop?.id).catch(() => []),
       ]);
 
-      const active = (orders || []).filter(
-        (o) => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'READY'
+      setProducts(prods || []);
+
+      const activeOrders = orders.filter(
+        (o: any) => o.status === 'PENDING' || o.status === 'PROCESSING' || o.status === 'READY'
       ).length;
 
-      const pendingCredit = (creditReqs || []).filter((r) => r.status === 'PENDING').length;
-      const lowStock = (inventory || []).filter((i) => i.stock_quantity <= 5).length;
+      const pendingCredit = creditRequests.length;
+      const lowStock = prods.filter((p: any) => p.stock_quantity <= 5).length;
 
-      // Calculate total sales from all orders with prices
-      const totalSales = (orders || []).reduce((sum, o) => {
-        const amt = typeof o.total_amount === 'string' ? parseFloat(o.total_amount) : o.total_amount;
-        if (amt && amt > 0) return sum + amt;
-        if (o.items && o.items.length > 0) {
-          const itemSum = o.items.reduce((acc: number, it: any) => {
-            const u = typeof it.unit_price === 'string' ? parseFloat(it.unit_price) : it.unit_price || 0;
-            return acc + u * (it.quantity || 1);
-          }, 0);
-          return sum + itemSum;
-        }
-        return sum;
-      }, 0);
+      const totalSales = orders
+        .filter((o: any) => o.status === 'COMPLETED' || o.status === 'READY')
+        .reduce((sum: number, o: any) => sum + (parseFloat(String(o.total_amount)) || 0), 0);
 
       setStats({
-        activeOrdersCount: active,
+        activeOrdersCount: activeOrders,
         pendingCreditRequests: pendingCredit,
         lowStockCount: lowStock,
         totalTodaySales: totalSales,
@@ -85,7 +88,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     fetchDashboardStats(false);
     const interval = setInterval(() => {
       fetchDashboardStats(true);
-    }, 3000);
+    }, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -147,7 +150,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               <Ionicons name="book" size={20} color={colors.gold.dark} />
             </View>
             <Text style={styles.metricVal}>{stats.pendingCreditRequests}</Text>
-            <Text style={styles.metricTitle}>Khata Requests</Text>
+            <Text style={styles.metricTitle}>Khata Accounts</Text>
           </TouchableOpacity>
 
           {/* Low Stock Items */}
@@ -167,6 +170,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {/* Quick Management Shortcuts */}
         <View style={styles.shortcutsSection}>
           <Text style={styles.sectionHeader}>Quick Actions</Text>
+
+          {/* WhatsApp Marketing Banner Shortcut */}
+          <TouchableOpacity
+            style={[styles.shortcutRow, styles.waShortcutRow]}
+            onPress={() => setIsWhatsAppModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.shortcutIconBox, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="logo-whatsapp" size={24} color="#166534" />
+            </View>
+            <View style={styles.shortcutInfo}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.shortcutTitle, { color: '#166534' }]}>WhatsApp Marketing & Offers</Text>
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>PROMO</Text>
+                </View>
+              </View>
+              <Text style={styles.shortcutSub}>Send festival offers, new stock alerts & bills on WhatsApp</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#166534" />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.shortcutRow}
@@ -207,13 +231,22 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               <Ionicons name="cube-outline" size={22} color={colors.primary.main} />
             </View>
             <View style={styles.shortcutInfo}>
-              <Text style={styles.shortcutTitle}>Store Inventory & Products</Text>
-              <Text style={styles.shortcutSub}>Add products, adjust pricing, and update stock</Text>
+              <Text style={styles.shortcutTitle}>Store Inventory & Inward Invoices</Text>
+              <Text style={styles.shortcutSub}>Add products, import wholesale bills, and update stock</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* WhatsApp Marketing & Broadcast Modal */}
+      <WhatsAppBroadcastModal
+        visible={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        products={products}
+        shop={shop}
+        initialType="NEW_ARRIVALS"
+      />
     </View>
   );
 };
@@ -237,43 +270,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
   },
   heroLabel: {
-    fontSize: 13,
     color: '#94A3B8',
+    fontSize: 13,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   heroValue: {
+    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '900',
-    color: '#FFFFFF',
     marginTop: 4,
   },
   storeStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
     gap: 6,
   },
   onlineDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#22C55E',
   },
   storeStatusText: {
-    color: '#A7F3D0',
+    color: '#4ADE80',
     fontSize: 12,
     fontWeight: '700',
   },
   heroSubText: {
     color: '#94A3B8',
     fontSize: 12,
-    marginTop: 6,
+    marginTop: 14,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -282,21 +318,21 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
     borderColor: colors.border.subtle,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
   },
   metricIconCircle: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 18,
     backgroundColor: colors.primary.surface,
     justifyContent: 'center',
     alignItems: 'center',
@@ -317,19 +353,36 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionHeader: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.text.primary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   shortcutRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border.subtle,
+    gap: 12,
+  },
+  waShortcutRow: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+    borderWidth: 1.5,
+  },
+  newBadge: {
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  newBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
   },
   shortcutIconBox: {
     width: 44,
@@ -338,14 +391,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
   },
   shortcutInfo: {
     flex: 1,
   },
   shortcutTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.text.primary,
   },
   shortcutSub: {
