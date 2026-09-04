@@ -111,8 +111,7 @@ export const InventoryScreen: React.FC = () => {
     }
   };
 
-  const handleInvoiceProcessed = (invoice: PurchaseInvoice) => {
-    // Refresh products list to show new products and updated stock
+  const handleInvoiceProcessed = (_invoice: PurchaseInvoice) => {
     fetchProducts();
   };
 
@@ -128,40 +127,46 @@ export const InventoryScreen: React.FC = () => {
     <View style={styles.container}>
       <Header
         title="Store Inventory"
-        subtitle={`${products.length} catalog items • ${lowStockCount} low in stock`}
+        subtitle={`${products.length} products • ${lowStockCount} low in stock`}
       />
 
-      {/* Top Action Section */}
-      <View style={styles.actionSection}>
+      {/* Action Bar Container */}
+      <View style={styles.topContainer}>
+        {/* Search Bar */}
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={18} color={colors.text.muted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search store inventory..."
+            placeholder="Search products by name or category..."
             placeholderTextColor={colors.text.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={colors.text.muted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.btnRow}>
+        {/* Buttons Row */}
+        <View style={styles.actionButtonsRow}>
           <TouchableOpacity
-            style={styles.addInvoiceBtn}
+            style={styles.invoiceBtn}
             onPress={() => setIsInvoiceModalOpen(true)}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            <Ionicons name="receipt-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.addInvoiceBtnText}>Add via Invoice</Text>
+            <Ionicons name="receipt" size={16} color="#FFFFFF" />
+            <Text style={styles.invoiceBtnText}>Add via Invoice</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.addProductBtn}
+            style={styles.singleItemBtn}
             onPress={() => setIsSingleModalOpen(true)}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             <Ionicons name="add" size={18} color="#FFFFFF" />
-            <Text style={styles.addProductBtnText}>+ Single Item</Text>
+            <Text style={styles.singleItemBtnText}>+ Single Item</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -170,6 +175,7 @@ export const InventoryScreen: React.FC = () => {
             activeOpacity={0.8}
           >
             <Ionicons name="time-outline" size={18} color={colors.primary.main} />
+            <Text style={styles.historyBtnText}>Bills</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -216,7 +222,7 @@ export const InventoryScreen: React.FC = () => {
 
                 {/* Stock Controls */}
                 <View style={styles.stockControlSection}>
-                  <Text style={styles.stockLabel}>Current Stock</Text>
+                  <Text style={styles.stockLabel}>Stock</Text>
                   <View style={styles.stockControls}>
                     <TouchableOpacity
                       style={styles.stockBtn}
@@ -243,8 +249,8 @@ export const InventoryScreen: React.FC = () => {
           ListEmptyComponent={
             <EmptyState
               icon="cube-outline"
-              title="No products in inventory"
-              description="Add single items or bulk import your grocery products from a supplier purchase invoice."
+              title="No Products Found"
+              description="Add single items or bulk import your products from a supplier purchase invoice."
               actionLabel="🧾 Add via Supplier Invoice"
               onActionPress={() => setIsInvoiceModalOpen(true)}
             />
@@ -259,7 +265,7 @@ export const InventoryScreen: React.FC = () => {
         title="Add Single Store Item"
       >
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Item Name</Text>
+          <Text style={styles.inputLabel}>Item Name *</Text>
           <TextInput
             style={styles.modalInput}
             placeholder="e.g. Fortune Sunflower Oil"
@@ -291,7 +297,7 @@ export const InventoryScreen: React.FC = () => {
 
         <View style={styles.inputRow}>
           <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.inputLabel}>Selling Price (₹)</Text>
+            <Text style={styles.inputLabel}>Selling Price (₹) *</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="e.g. 140"
@@ -348,28 +354,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.default,
   },
-  actionSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+  topContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-    gap: 8,
-    flexWrap: 'wrap',
+    borderBottomColor: '#E2E8F0',
+    gap: 10,
   },
   searchBar: {
-    flex: 1,
-    minWidth: 200,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.subtle,
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    height: 42,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: '#E2E8F0',
     gap: 8,
   },
   searchInput: {
@@ -377,47 +379,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text.primary,
   },
-  btnRow: {
+  actionButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  addInvoiceBtn: {
+  invoiceBtn: {
+    flex: 1.3,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    backgroundColor: '#0F172A',
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    paddingVertical: 9,
     borderRadius: 10,
-    gap: 4,
+    gap: 6,
   },
-  addInvoiceBtnText: {
+  invoiceBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  addProductBtn: {
+  singleItemBtn: {
+    flex: 1.1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary.main,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    paddingVertical: 9,
     borderRadius: 10,
     gap: 4,
   },
-  addProductBtnText: {
+  singleItemBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   historyBtn: {
-    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: '#C7D2FE',
     backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 4,
+  },
+  historyBtnText: {
+    color: colors.primary.main,
+    fontSize: 12,
+    fontWeight: '700',
   },
   loaderContainer: {
     flex: 1,
@@ -430,31 +443,32 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
   },
   listContent: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 40,
   },
   productCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: '#E2E8F0',
     marginBottom: 10,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
   },
   productMain: {
     flex: 1,
+    marginRight: 10,
   },
   prodHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   productName: {
     fontSize: 14,
@@ -462,7 +476,7 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   lowStockBadge: {
-    backgroundColor: colors.danger.surface,
+    backgroundColor: '#FEE2E2',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -470,7 +484,7 @@ const styles = StyleSheet.create({
   lowStockText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.danger.dark,
+    color: '#DC2626',
   },
   categoryText: {
     fontSize: 12,
@@ -480,7 +494,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: 14,
     fontWeight: '800',
-    color: colors.primary.dark,
+    color: colors.primary.main,
     marginTop: 4,
   },
   stockControlSection: {
@@ -495,17 +509,17 @@ const styles = StyleSheet.create({
   stockControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.subtle,
-    borderRadius: 10,
-    padding: 3,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 2,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: '#CBD5E1',
   },
   stockBtn: {
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -516,7 +530,7 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   lowStockVal: {
-    color: colors.danger.dark,
+    color: '#DC2626',
   },
   inputGroup: {
     marginBottom: 12,
@@ -531,10 +545,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalInput: {
-    backgroundColor: colors.background.subtle,
+    backgroundColor: '#F8FAFC',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: '#CBD5E1',
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 13,
@@ -542,7 +556,7 @@ const styles = StyleSheet.create({
   },
   saveProductBtn: {
     backgroundColor: colors.primary.main,
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
