@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/Header';
 import { WhatsAppBroadcastModal } from '../../components/WhatsAppBroadcastModal';
+import { AddBulkCustomersModal } from '../../components/AddBulkCustomersModal';
 import { useAuth } from '../../context/AuthContext';
 import { orderApi, creditApi, shopApi } from '../../api/endpoints';
 import { Product } from '../../types';
@@ -32,6 +33,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isAddBulkCustomersModalOpen, setIsAddBulkCustomersModalOpen] = useState(false);
 
   const [stats, setStats] = useState<{
     activeOrdersCount: number;
@@ -207,6 +209,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
           </TouchableOpacity>
 
+          {/* Add Bulk Customers Shortcut */}
+          <TouchableOpacity
+            style={styles.shortcutRow}
+            onPress={() => setIsAddBulkCustomersModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.shortcutIconBox, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="people-circle-outline" size={24} color={colors.primary.main} />
+            </View>
+            <View style={styles.shortcutInfo}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.shortcutTitle}>Add Bulk Customers (10+ at once)</Text>
+                <View style={[styles.newBadge, { backgroundColor: colors.primary.surface }]}>
+                  <Text style={[styles.newBadgeText, { color: colors.primary.main }]}>BULK</Text>
+                </View>
+              </View>
+              <Text style={styles.shortcutSub}>Quick import customer directory by table entry or copy-paste</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.shortcutRow}
             onPress={onNavigateToKhata}
@@ -246,6 +269,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         products={products}
         shop={shop}
         initialType="NEW_ARRIVALS"
+      />
+
+      {/* Add Bulk Customers Modal */}
+      <AddBulkCustomersModal
+        visible={isAddBulkCustomersModalOpen}
+        onClose={() => setIsAddBulkCustomersModalOpen(false)}
+        onCustomersAdded={() => {
+          setIsAddBulkCustomersModalOpen(false);
+          setIsWhatsAppModalOpen(true);
+        }}
       />
     </View>
   );

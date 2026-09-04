@@ -233,3 +233,12 @@ export interface PurchaseInvoice {
   items: PurchaseInvoiceItem[];
 }
 
+export interface ConnectedCustomer {
+  customer_id: number;
+  user_id: number;
+  name: string;
+  phone: string;
+  address?: string;
+  joined_at?: string;
+}
+

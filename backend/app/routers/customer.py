@@ -672,3 +672,217 @@ def delete_customer(
     db.commit()
 
     return None
+# ============================================================
+# BULK ADD CUSTOMERS & STORE CUSTOMER DIRECTORY (FOR SHOPKEEPERS)
+# ============================================================
+
+from typing import Optional, List
+from pydantic import BaseModel
+from ..models.order import Order
+from ..models.credit_account import CreditAccount
+
+class BulkCustomerItem(BaseModel):
+    name: str
+    phone: str
+    address: Optional[str] = None
+    notes: Optional[str] = None
+
+class BulkCustomerCreate(BaseModel):
+    customers: List[BulkCustomerItem]
+
+class ConnectedCustomerResponse(BaseModel):
+    customer_id: int
+    user_id: int
+    name: str
+    phone: str
+    address: Optional[str] = None
+    joined_at: Optional[str] = None
+
+
+@router.post(
+    "/shopkeeper/bulk",
+    status_code=status.HTTP_201_CREATED,
+)
+def add_bulk_customers(
+    payload: BulkCustomerCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("shopkeeper", "admin")),
+):
+    shop = (
+        db.query(Shop)
+        .filter(
+            Shop.owner_user_id == current_user.id,
+            Shop.is_active.is_(True),
+        )
+        .first()
+    )
+    if not shop:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active shop not found for this shopkeeper.",
+        )
+
+    added_count = 0
+    connected_count = 0
+    results = []
+
+    for item in payload.customers:
+        clean_name = item.name.strip()
+        clean_phone = "".join(filter(str.isdigit, item.phone))
+        if len(clean_phone) > 10 and clean_phone.startswith("91"):
+            clean_phone = clean_phone[-10:]
+        
+        if len(clean_phone) < 10 or not clean_name:
+            continue
+
+        # 1. Find or create user
+        user = db.query(User).filter(User.phone == clean_phone).first()
+        if not user:
+            user = User(
+                name=clean_name,
+                phone=clean_phone,
+                role="customer",
+                password_hash=hash_password("Pass123"),
+                is_active=True,
+            )
+            db.add(user)
+            db.flush()
+            added_count += 1
+        elif not user.name or user.name == "Customer":
+            user.name = clean_name
+
+        # 2. Find or create Customer profile
+        customer = db.query(Customer).filter(Customer.user_id == user.id).first()
+        if not customer:
+            customer = Customer(
+                user_id=user.id,
+                name=clean_name,
+                phone=clean_phone,
+                is_active=True,
+            )
+            db.add(customer)
+            db.flush()
+
+        # 3. Link customer to ShopCustomer
+        shop_customer = (
+            db.query(ShopCustomer)
+            .filter(
+                ShopCustomer.shop_id == shop.id,
+                ShopCustomer.customer_id == customer.id,
+            )
+            .first()
+        )
+
+        if not shop_customer:
+            shop_customer = ShopCustomer(
+                shop_id=shop.id,
+                customer_id=customer.id,
+                is_active=True,
+            )
+            db.add(shop_customer)
+            connected_count += 1
+
+        results.append({
+            "customer_id": customer.id,
+            "user_id": user.id,
+            "name": user.name,
+            "phone": user.phone,
+        })
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Successfully processed {len(results)} customers ({connected_count} newly connected to store).",
+        "added_count": added_count,
+        "connected_count": connected_count,
+        "customers": results,
+    }
+
+
+@router.get(
+    "/shopkeeper/list",
+    response_model=List[ConnectedCustomerResponse],
+)
+def get_shopkeeper_customers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("shopkeeper", "admin")),
+):
+    shop = (
+        db.query(Shop)
+        .filter(
+            Shop.owner_user_id == current_user.id,
+            Shop.is_active.is_(True),
+        )
+        .first()
+    )
+    if not shop:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active shop not found for this shopkeeper.",
+        )
+
+    # 1. Customers linked via ShopCustomer
+    linked_customers = (
+        db.query(Customer, User, ShopCustomer.created_at)
+        .join(User, Customer.user_id == User.id)
+        .join(ShopCustomer, ShopCustomer.customer_id == Customer.id)
+        .filter(ShopCustomer.shop_id == shop.id, ShopCustomer.is_active.is_(True))
+        .all()
+    )
+
+    seen_customer_ids = set()
+    customer_list = []
+
+    for cust, u, joined_at in linked_customers:
+        if cust.id not in seen_customer_ids:
+            seen_customer_ids.add(cust.id)
+            customer_list.append({
+                "customer_id": cust.id,
+                "user_id": u.id,
+                "name": u.name or cust.name or "Valued Customer",
+                "phone": u.phone or "",
+                "joined_at": joined_at.isoformat() if joined_at else None,
+            })
+
+    # 2. Customers who placed Orders with this shop
+    order_customers = (
+        db.query(Customer, User, Order.created_at)
+        .join(User, Customer.user_id == User.id)
+        .join(Order, Order.customer_id == Customer.id)
+        .filter(Order.shop_id == shop.id)
+        .all()
+    )
+
+    for cust, u, order_date in order_customers:
+        if cust.id not in seen_customer_ids:
+            seen_customer_ids.add(cust.id)
+            customer_list.append({
+                "customer_id": cust.id,
+                "user_id": u.id,
+                "name": u.name or cust.name or "Valued Customer",
+                "phone": u.phone or "",
+                "joined_at": order_date.isoformat() if order_date else None,
+            })
+
+    # 3. Customers who have Credit Account with this shop
+    credit_customers = (
+        db.query(Customer, User, CreditAccount.created_at)
+        .join(User, Customer.user_id == User.id)
+        .join(CreditAccount, CreditAccount.customer_id == Customer.id)
+        .filter(CreditAccount.shop_id == shop.id)
+        .all()
+    )
+
+    for cust, u, cr_date in credit_customers:
+        if cust.id not in seen_customer_ids:
+            seen_customer_ids.add(cust.id)
+            customer_list.append({
+                "customer_id": cust.id,
+                "user_id": u.id,
+                "name": u.name or cust.name or "Valued Customer",
+                "phone": u.phone or "",
+                "joined_at": cr_date.isoformat() if cr_date else None,
+            })
+
+    return customer_list

@@ -13,6 +13,7 @@ import {
   ShoppingList,
   PurchaseInvoice,
   PurchaseInvoiceItem,
+  ConnectedCustomer,
 } from '../types';
 
 export const authApi = {
@@ -64,6 +65,22 @@ export const authApi = {
 export const customerApi = {
   getMe: async () => {
     const res = await apiClient.get<User>('/api/v1/customers/me');
+    return res.data;
+  },
+
+  addBulkCustomers: async (customers: { name: string; phone: string; address?: string; notes?: string }[]) => {
+    const res = await apiClient.post<{
+      success: boolean;
+      message: string;
+      added_count: number;
+      connected_count: number;
+      customers: ConnectedCustomer[];
+    }>('/api/v1/customers/shopkeeper/bulk', { customers });
+    return res.data;
+  },
+
+  getConnectedCustomers: async (): Promise<ConnectedCustomer[]> => {
+    const res = await apiClient.get<ConnectedCustomer[]>('/api/v1/customers/shopkeeper/list');
     return res.data;
   },
 };
